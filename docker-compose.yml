@@ -1,0 +1,106 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aiwm
+      POSTGRES_USER: aiwm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aiwm_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiwm -d aiwm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - aiwm
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    env_file:
+      - .env.example
+    environment:
+      AIWM_ENV: ${AIWM_ENV:-development}
+      AIWM_SERVICE_NAME: api
+      AIWM_DATABASE_URL: ${AIWM_DATABASE_URL:-postgresql://aiwm:aiwm_dev_password@db:5432/aiwm}
+      AIWM_REDIS_URL: ${AIWM_REDIS_URL:-redis://redis:6379/0}
+      AIWM_WORKSPACE_ROOT: /app/workspace
+    volumes:
+      - workspace:/app/workspace
+    ports:
+      - "${AIWM_API_PUBLISHED_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "backend.app.healthcheck_cli"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - aiwm
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    environment:
+      AIWM_API_BASE_URL: http://api:8000
+    ports:
+      - "${AIWM_WEB_PUBLISHED_PORT:-8501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - aiwm
+
+  redis:
+    image: redis:7-alpine
+    profiles:
+      - async
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - aiwm
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    profiles:
+      - async
+    command: ["python", "-m", "celery", "-A", "backend.app.tasks.celery_app:celery_app", "worker", "--loglevel=INFO", "-Q", "default,video"]
+    env_file:
+      - .env.example
+    environment:
+      AIWM_ENV: ${AIWM_ENV:-development}
+      AIWM_SERVICE_NAME: worker
+      AIWM_DATABASE_URL: ${AIWM_DATABASE_URL:-postgresql://aiwm:aiwm_dev_password@db:5432/aiwm}
+      AIWM_REDIS_URL: ${AIWM_REDIS_URL:-redis://redis:6379/0}
+      AIWM_WORKSPACE_ROOT: /app/workspace
+    volumes:
+      - workspace:/app/workspace
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aiwm
+
+volumes:
+  postgres_data:
+  workspace:
+  redis_data:
+
+networks:
+  aiwm:
+    driver: bridge
