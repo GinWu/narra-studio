@@ -101,7 +101,9 @@ class ProviderService:
             normalized["auth_type"] = "none"
         if "credential_source" not in normalized and not partial:
             normalized["credential_source"] = "none"
-        if "masked_credential" not in normalized:
+        credential_fields = {"credential_source", "credential_ref", "credential_file"}
+        should_refresh_mask = not partial or bool(credential_fields.intersection(normalized))
+        if "masked_credential" not in normalized and should_refresh_mask:
             normalized["masked_credential"] = mask_reference(
                 normalized.get("credential_ref") or normalized.get("credential_file")
             )

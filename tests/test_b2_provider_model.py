@@ -82,6 +82,31 @@ def test_provider_service_masks_and_tests_connection(db_session):
     assert provider.last_health_error == "credential_not_found"
 
 
+def test_provider_partial_update_preserves_masked_credential(db_session):
+    service = ProviderService(db_session)
+    provider = service.create_provider(
+        {
+            "name": "openai",
+            "display_name": "OpenAI",
+            "credential_source": "env",
+            "credential_ref": "OPENAI_API_KEY",
+            "enabled": True,
+        }
+    )
+    assert provider.masked_credential == "OPEN..._KEY"
+
+    updated = service.update_provider(provider.id, {"enabled": False})
+    assert updated.enabled is False
+    assert updated.masked_credential == "OPEN..._KEY"
+
+    updated = service.update_provider(provider.id, {"display_name": "OpenAI Cloud"})
+    assert updated.display_name == "OpenAI Cloud"
+    assert updated.masked_credential == "OPEN..._KEY"
+
+    updated = service.update_provider(provider.id, {"credential_ref": "SECONDARY_TOKEN"})
+    assert updated.masked_credential == "SECO...OKEN"
+
+
 def test_model_registry_default_model_is_unique(db_session):
     provider = ProviderService(db_session).create_provider({"name": "mock", "credential_source": "none"})
     registry = ModelRegistryService(db_session)
