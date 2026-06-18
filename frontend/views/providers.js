@@ -1,4 +1,4 @@
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 
 export default {
   name: 'ProvidersView',
@@ -31,7 +31,7 @@ export default {
                   <h4 style="font-family: var(--font-heading); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
                     {{ prv.display_name }} 
                     <span class="badge" :class="prv.enabled ? 'badge-success' : 'badge-warning'" style="font-size: 0.65rem;">
-                      {{ prv.enabled ? t('models.card.actionDisable') : t('models.card.actionEnable') }}
+                      {{ prv.enabled ? t('providers.status.enabled') : t('providers.status.disabled') }}
                     </span>
                     <span class="badge badge-cyan" style="font-size: 0.65rem; text-transform: uppercase;">
                       {{ prv.provider_type }}
@@ -43,13 +43,18 @@ export default {
                 </div>
                 <div style="display: flex; gap: 8px;">
                   <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;" 
+                          @click="startEdit(prv)">
+                    <i class="fas fa-pen"></i>
+                    {{ t('common.edit') }}
+                  </button>
+                  <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;" 
                           @click="testConnection(prv.id)" :disabled="testingId === prv.id">
                     <i class="fas" :class="testingId === prv.id ? 'fa-spinner animate-spin' : 'fa-vial'"></i>
                     {{ t('providers.buttons.test') }}
                   </button>
                   <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem; color: var(--accent-cyan);" 
                           @click="toggleEnabled(prv)">
-                    {{ prv.enabled ? t('models.card.actionDisable') : t('models.card.actionEnable') }}
+                    {{ prv.enabled ? t('providers.actions.disable') : t('providers.actions.enable') }}
                   </button>
                   <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.75rem;" 
                           @click="deleteProvider(prv.id)">
@@ -70,14 +75,14 @@ export default {
                   <strong>{{ t('providers.modal.labelSource') }}:</strong> <span class="badge badge-purple" style="font-size: 0.7rem; text-transform: none;">{{ prv.credential_source }}</span>
                 </div>
                 <div class="col-span-6">
-                  <strong>{{ t('providers.modal.labelRef') }}:</strong> <span style="font-family: monospace;">{{ prv.masked_credential || t('common.none') }}</span>
+                  <strong>{{ t('providers.modal.labelRef') }}:</strong> <span style="font-family: monospace;">{{ displayCredentialReference(prv) }}</span>
                 </div>
                 <div class="col-span-12" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
                   <strong>{{ t('models.card.capability') }}:</strong> 
-                  <span v-for="cap in prv.capability_summary" :key="cap" class="badge badge-cyan" style="margin-left: 6px; font-size: 0.7rem;">
+                  <span v-for="cap in getCapabilitySummary(prv)" :key="cap" class="badge badge-cyan" style="margin-left: 6px; font-size: 0.7rem;">
                     {{ cap }}
                   </span>
-                  <span v-if="!prv.capability_summary || prv.capability_summary.length === 0" style="font-size: 0.75rem; color: var(--text-muted);">{{ t('common.none') }}</span>
+                  <span v-if="getCapabilitySummary(prv).length === 0" style="font-size: 0.75rem; color: var(--text-muted);">{{ t('common.none') }}</span>
                 </div>
               </div>
             </div>
@@ -86,9 +91,14 @@ export default {
 
         <!-- Add Provider Form -->
         <div class="col-span-4 glass-card">
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; margin-bottom: 20px;">{{ t('providers.modal.titleAdd') }}</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px;">
+            <h3 style="font-family: var(--font-heading); font-size: 1.25rem;">{{ editingId ? t('providers.modal.titleEdit') : t('providers.modal.titleAdd') }}</h3>
+            <button v-if="editingId" type="button" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem;" @click="cancelEdit">
+              {{ t('common.cancel') }}
+            </button>
+          </div>
           
-          <form @submit.prevent="createProvider" style="display: flex; flex-direction: column; gap: 16px;">
+          <form @submit.prevent="saveProvider" style="display: flex; flex-direction: column; gap: 16px;">
             <div>
               <label class="input-label">{{ t('providers.modal.labelDisplay') }} *</label>
               <input type="text" class="input-field" v-model="form.display_name" required placeholder="e.g. OpenAI Cloud">
@@ -96,7 +106,10 @@ export default {
 
             <div>
               <label class="input-label">{{ t('providers.modal.labelName') }} *</label>
-              <input type="text" class="input-field" v-model="form.name" required placeholder="e.g. openai">
+              <input type="text" class="input-field" v-model="form.name" required :disabled="!!editingId" placeholder="e.g. openai">
+              <p v-if="editingId" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                {{ t('providers.help.codeLocked') }}
+              </p>
             </div>
 
             <div>
@@ -131,15 +144,24 @@ export default {
                 <option value="file">Local System File Path</option>
                 <option value="none">None</option>
               </select>
+              <div style="margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(0,240,255,0.18); border-radius: 8px; background: rgba(0,240,255,0.04); color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45;">
+                <strong style="color: var(--accent-cyan); display: block; margin-bottom: 4px;">{{ credentialHelpTitle }}</strong>
+                {{ credentialHelpText }}
+              </div>
             </div>
 
-            <div>
+            <div v-if="form.credential_source === 'env' || form.credential_source === 'docker_secret'">
               <label class="input-label">{{ t('providers.modal.labelRef') }} *</label>
-              <input type="text" class="input-field" v-model="form.credential_ref" placeholder="e.g. OPENAI_API_KEY">
+              <input type="text" class="input-field" v-model="form.credential_ref" :required="form.credential_source !== 'none'" :placeholder="credentialRefPlaceholder">
+            </div>
+
+            <div v-if="form.credential_source === 'docker_secret' || form.credential_source === 'file'">
+              <label class="input-label">{{ form.credential_source === 'file' ? t('providers.modal.labelFile') : t('providers.modal.labelFileOptional') }}</label>
+              <input type="text" class="input-field" v-model="form.credential_file" :required="form.credential_source === 'file'" :placeholder="credentialFilePlaceholder">
             </div>
 
             <button type="submit" class="btn btn-primary" style="margin-top: 10px;">
-              <i class="fas fa-plus"></i> {{ t('common.save') }}
+              <i class="fas" :class="editingId ? 'fa-save' : 'fa-plus'"></i> {{ editingId ? t('providers.actions.saveChanges') : t('common.save') }}
             </button>
           </form>
         </div>
@@ -152,16 +174,21 @@ export default {
     const t = inject('t');
     const providers = ref([]);
     const testingId = ref(null);
+    const editingId = ref(null);
 
-    const form = ref({
+    const emptyForm = () => ({
       name: '',
       display_name: '',
       provider_type: 'cloud_api',
       auth_type: 'bearer_token',
       api_base: '',
       credential_source: 'env',
-      credential_ref: ''
+      credential_ref: '',
+      credential_file: '',
+      enabled: true
     });
+
+    const form = ref(emptyForm());
 
     const loadProviders = async () => {
       try {
@@ -172,39 +199,69 @@ export default {
       }
     };
 
-    const createProvider = async () => {
+    const buildProviderPayload = () => {
+      const source = form.value.credential_source;
+      return {
+        name: form.value.name.toLowerCase().trim(),
+        display_name: form.value.display_name.trim(),
+        provider_type: form.value.provider_type,
+        auth_type: form.value.auth_type,
+        api_base: form.value.api_base.trim() || null,
+        credential_source: source,
+        credential_ref: ['env', 'docker_secret'].includes(source) ? (form.value.credential_ref.trim() || null) : null,
+        credential_file: ['docker_secret', 'file'].includes(source) ? (form.value.credential_file.trim() || null) : null,
+        enabled: !!form.value.enabled
+      };
+    };
+
+    const resetForm = () => {
+      form.value = emptyForm();
+      editingId.value = null;
+    };
+
+    const saveProvider = async () => {
       try {
-        const params = {
-          name: form.value.name.toLowerCase().trim(),
-          display_name: form.value.display_name.trim(),
-          provider_type: form.value.provider_type,
-          auth_type: form.value.auth_type,
-          api_base: form.value.api_base.trim() || null,
-          credential_source: form.value.credential_source,
-          credential_ref: form.value.credential_ref.trim() || null,
-          enabled: true
-        };
+        const params = buildProviderPayload();
 
-        await apiClient.request('/api/providers', {
-          method: 'POST',
-          body: JSON.stringify(params)
-        });
+        if (editingId.value) {
+          const { name, ...updateParams } = params;
+          await apiClient.request(`/api/providers/${editingId.value}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updateParams)
+          });
+          addToast('success', 'Provider Updated', `Saved provider: ${params.display_name}`);
+        } else {
+          await apiClient.request('/api/providers', {
+            method: 'POST',
+            body: JSON.stringify(params)
+          });
+          addToast('success', 'Provider Created', `Successfully added provider: ${params.display_name}`);
+        }
 
-        addToast('success', 'Provider Created', `Successfully added provider: ${params.display_name}`);
-        // Reset form
-        form.value = {
-          name: '',
-          display_name: '',
-          provider_type: 'cloud_api',
-          auth_type: 'bearer_token',
-          api_base: '',
-          credential_source: 'env',
-          credential_ref: ''
-        };
+        resetForm();
         loadProviders();
       } catch (err) {
-        addToast('error', 'Failed to create provider', err.message || 'Invalid parameters.');
+        addToast('error', editingId.value ? 'Failed to update provider' : 'Failed to create provider', err.message || 'Invalid parameters.');
       }
+    };
+
+    const startEdit = (prv) => {
+      editingId.value = prv.id;
+      form.value = {
+        name: prv.name || '',
+        display_name: prv.display_name || '',
+        provider_type: prv.provider_type || 'cloud_api',
+        auth_type: prv.auth_type || 'bearer_token',
+        api_base: prv.api_base || '',
+        credential_source: prv.credential_source || 'none',
+        credential_ref: prv.credential_ref || '',
+        credential_file: prv.credential_file || '',
+        enabled: !!prv.enabled
+      };
+    };
+
+    const cancelEdit = () => {
+      resetForm();
     };
 
     const toggleEnabled = async (prv) => {
@@ -250,6 +307,30 @@ export default {
       }
     };
 
+    const displayCredentialReference = (prv) => {
+      return prv.masked_credential || prv.credential_ref || prv.credential_file || t('common.none');
+    };
+
+    const getCapabilitySummary = (prv) => {
+      return prv.capability_summary || prv.capability_summary_json || [];
+    };
+
+    const credentialHelpTitle = computed(() => {
+      return t(`providers.credentialHelp.${form.value.credential_source}.title`);
+    });
+
+    const credentialHelpText = computed(() => {
+      return t(`providers.credentialHelp.${form.value.credential_source}.desc`);
+    });
+
+    const credentialRefPlaceholder = computed(() => {
+      return form.value.credential_source === 'docker_secret' ? 'e.g. openai_api_key' : 'e.g. OPENAI_API_KEY';
+    });
+
+    const credentialFilePlaceholder = computed(() => {
+      return form.value.credential_source === 'docker_secret' ? 'Optional, default: /run/secrets/<secret_name>' : 'e.g. /app/secrets/openai_api_key';
+    });
+
     onMounted(() => {
       loadProviders();
     });
@@ -259,10 +340,19 @@ export default {
       providers,
       form,
       testingId,
-      createProvider,
+      editingId,
+      saveProvider,
+      startEdit,
+      cancelEdit,
       toggleEnabled,
       deleteProvider,
-      testConnection
+      testConnection,
+      displayCredentialReference,
+      getCapabilitySummary,
+      credentialHelpTitle,
+      credentialHelpText,
+      credentialRefPlaceholder,
+      credentialFilePlaceholder
     };
   }
 };

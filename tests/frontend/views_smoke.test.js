@@ -94,3 +94,14 @@ test('Views that call t() expose translator to templates', () => {
     );
   }
 });
+
+test('Providers view separates state labels, actions, editing, and credential help', () => {
+  const content = fs.readFileSync(path.join(frontendDir, 'views/providers.js'), 'utf8');
+
+  assert.ok(content.includes("t('providers.status.enabled')"), 'provider card should display current enabled status');
+  assert.ok(content.includes("t('providers.actions.disable')"), 'provider action button should describe the next action');
+  assert.ok(content.includes('@click="startEdit(prv)"'), 'provider cards should expose an edit action');
+  assert.ok(content.includes('@submit.prevent="saveProvider"'), 'provider form should support create/update save flow');
+  assert.ok(content.includes('credentialHelpTitle'), 'credential source help should be shown in the form');
+  assert.ok(content.includes('displayCredentialReference'), 'provider card should display safe credential references');
+});

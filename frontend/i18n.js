@@ -96,6 +96,36 @@ export const translations = {
         add: 'Register Provider',
         test: 'Test Connection'
       },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled'
+      },
+      actions: {
+        enable: 'Enable',
+        disable: 'Disable',
+        saveChanges: 'Save Changes'
+      },
+      help: {
+        codeLocked: 'Provider code is a stable registry identifier and cannot be changed after creation.'
+      },
+      credentialHelp: {
+        env: {
+          title: 'Environment Variable',
+          desc: 'Read from the backend API/worker container environment, not from the browser or your desktop. Add the variable to Docker Compose env_file/environment, then enter its variable name here.'
+        },
+        docker_secret: {
+          title: 'Docker Secret',
+          desc: 'Read from a file mounted inside the backend container, normally /run/secrets/<secret_name>. Create or mount the secret in Docker Compose, then enter the secret name here. The real key is never saved in the database.'
+        },
+        file: {
+          title: 'Backend Container File Path',
+          desc: 'Read from a text file path visible inside the backend container. Use this only for local/dev deployments where you can mount a secret file into the container.'
+        },
+        none: {
+          title: 'No Credential',
+          desc: 'Use this for mock providers or providers that do not require authentication. No secret reference is needed.'
+        }
+      },
       modal: {
         titleAdd: 'Register New Provider',
         titleEdit: 'Edit Provider Configuration',
@@ -107,6 +137,7 @@ export const translations = {
         labelSource: 'Credential Source',
         labelRef: 'Credential Reference Name',
         labelFile: 'Secret File Path (Optional)',
+        labelFileOptional: 'Secret File Path Override (Optional)',
         labelTimeout: 'Timeout (Seconds)'
       }
     },
@@ -619,6 +650,36 @@ export const translations = {
         add: '注册服务商',
         test: '测试连接'
       },
+      status: {
+        enabled: '已启用',
+        disabled: '已禁用'
+      },
+      actions: {
+        enable: '启用',
+        disable: '停用',
+        saveChanges: '保存修改'
+      },
+      help: {
+        codeLocked: '服务商代码是稳定的注册标识，创建后不可修改。'
+      },
+      credentialHelp: {
+        env: {
+          title: 'Environment Variable：后端容器环境变量',
+          desc: '这里读取的是 API/worker 后端容器内的环境变量，不是浏览器或当前桌面设备的环境变量。请在 Docker Compose 的 env_file 或 environment 中配置真实 Key，然后这里只填写变量名。'
+        },
+        docker_secret: {
+          title: 'Docker Secret：容器内密钥文件',
+          desc: '这里读取的是后端容器内挂载的密钥文件，默认路径为 /run/secrets/<secret_name>。请在 Docker Compose 中创建或挂载 secret，然后这里只填写 secret 名称；真实 Key 不会保存到数据库。'
+        },
+        file: {
+          title: 'Local System File Path：后端容器可见文件路径',
+          desc: '这里的“本地文件”指后端容器内部可访问的文件路径，不是浏览器所在电脑的路径。通常用于开发部署：把宿主机密钥文件挂载进容器，再填写容器内路径。'
+        },
+        none: {
+          title: 'None：无需凭据',
+          desc: '适用于 Mock 服务商或无需认证的服务商，不需要填写凭据引用。'
+        }
+      },
       modal: {
         titleAdd: '注册新服务商',
         titleEdit: '编辑服务商配置',
@@ -630,6 +691,7 @@ export const translations = {
         labelSource: '凭据来源',
         labelRef: '凭据引用变量名',
         labelFile: '密钥文件路径 (可选)',
+        labelFileOptional: '密钥文件路径覆盖 (可选)',
         labelTimeout: '超时时间 (秒)'
       }
     },
