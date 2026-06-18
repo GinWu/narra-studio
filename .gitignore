@@ -13,14 +13,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-workspace/assets/**
-workspace/uploads/**
-workspace/thumbnails/**
-workspace/exports/**
-!workspace/assets/.gitkeep
-!workspace/uploads/.gitkeep
-!workspace/thumbnails/.gitkeep
-!workspace/exports/.gitkeep
+workspace/
 secrets/*
 !secrets/.gitkeep
 !secrets/README.md
